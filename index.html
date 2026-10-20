@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberShield – Phishing URL Detector</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="site-header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="shield-icon">🛡</span>
+      <span class="brand">CyberShield</span>
+    </div>
+    <p class="tagline">Phishing URL Detection System</p>
+  </div>
+</header>
+
+<!-- ===== MAIN ===== -->
+<main class="container">
+
+  <!-- Safety Disclaimer -->
+  <div class="disclaimer">
+    <strong>⚠ Educational Tool Only:</strong> This tool uses heuristic rules and
+    <em>cannot guarantee</em> whether a URL is safe or malicious. Never submit
+    sensitive or personal information to unknown sites. Always verify links
+    through official channels.
+  </div>
+
+  <!-- Scan Card -->
+  <section class="card scan-card">
+    <h2 class="card-title">Analyze a URL</h2>
+    <form id="scanForm" autocomplete="off" novalidate>
+      <div class="input-row">
+        <input
+          type="text"
+          id="urlInput"
+          class="url-input"
+          placeholder="https://example.com/path?query=value"
+          aria-label="Enter URL to analyze"
+          spellcheck="false"
+        />
+        <button type="submit" class="btn-scan" id="scanBtn">Scan</button>
+      </div>
+      <p id="inputError" class="input-error" role="alert"></p>
+    </form>
+
+    <!-- Result Panel (hidden until a scan runs) -->
+    <div id="resultPanel" class="result-panel hidden" aria-live="polite">
+      <div class="result-header">
+        <span class="result-label">Risk Level:</span>
+        <span id="resultCategory" class="risk-badge"></span>
+        <span class="score-label">Score: <strong id="resultScore"></strong></span>
+      </div>
+      <p class="scanned-url" id="resultUrl"></p>
+      <ul id="resultReasons" class="reasons-list"></ul>
+      <p class="result-note">
+        This result is based on URL structure only. The URL was <strong>not</strong> visited or sent anywhere.
+      </p>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="card info-card">
+    <h2 class="card-title">How it works</h2>
+    <div class="rules-grid">
+      <div class="rule-item">
+        <span class="rule-icon">🔢</span>
+        <div>
+          <strong>IP Hostname</strong>
+          <p>Flags URLs that use a raw IP address instead of a domain name.</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">📏</span>
+        <div>
+          <strong>URL Length</strong>
+          <p>Very long URLs (100+ chars) are a common phishing tactic.</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">@</span>
+        <div>
+          <strong>@ Symbol</strong>
+          <p>An @ in the host causes browsers to ignore the text before it.</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">🌐</span>
+        <div>
+          <strong>Subdomain Depth</strong>
+          <p>Excessive subdomains mimic trusted brands.</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">🔑</span>
+        <div>
+          <strong>Suspicious Keywords</strong>
+          <p>Words like "login", "verify", "password" in the URL path.</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">🔒</span>
+        <div>
+          <strong>HTTPS Check</strong>
+          <p>HTTP (not HTTPS) means data travels unencrypted.</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">➖</span>
+        <div>
+          <strong>Hyphen in Domain</strong>
+          <p>Hyphens in the domain often spoof brand names (pay-pal.com).</p>
+        </div>
+      </div>
+      <div class="rule-item">
+        <span class="rule-icon">↪</span>
+        <div>
+          <strong>Double Slash Redirect</strong>
+          <p>Double slashes in the path may indicate a redirect attempt.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scan History -->
+  <section class="card history-card">
+    <div class="history-header">
+      <h2 class="card-title">Scan History</h2>
+      <button class="btn-clear" id="clearHistoryBtn" title="Clear history">Clear</button>
+    </div>
+
+    {% if history %}
+    <table class="history-table">
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Risk</th>
+          <th>Score</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+        {% for item in history %}
+        <tr>
+          <td class="url-cell" title="{{ item.url }}">{{ item.url }}</td>
+          <td><span class="risk-badge risk-{{ item.category | lower }}">{{ item.category }}</span></td>
+          <td>{{ item.score }}</td>
+          <td class="time-cell">{{ item.timestamp }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty-history" id="emptyHistory">No scans yet – enter a URL above to get started.</p>
+    {% endif %}
+  </section>
+
+</main>
+
+<!-- ===== FOOTER ===== -->
+<footer class="site-footer">
+  <p>CyberShield is an educational tool. Results are heuristic estimates, not definitive verdicts.</p>
+</footer>
+
+<!-- ===== SCRIPT ===== -->
+<script>
+  const form       = document.getElementById("scanForm");
+  const urlInput   = document.getElementById("urlInput");
+  const scanBtn    = document.getElementById("scanBtn");
+  const inputError = document.getElementById("inputError");
+  const resultPanel   = document.getElementById("resultPanel");
+  const resultCategory = document.getElementById("resultCategory");
+  const resultScore    = document.getElementById("resultScore");
+  const resultUrl      = document.getElementById("resultUrl");
+  const resultReasons  = document.getElementById("resultReasons");
+  const clearBtn       = document.getElementById("clearHistoryBtn");
+  const historyBody    = document.getElementById("historyBody");
+  const emptyHistory   = document.getElementById("emptyHistory");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    inputError.textContent = "";
+    const url = urlInput.value.trim();
+
+    if (!url) {
+      inputError.textContent = "Please enter a URL before scanning.";
+      return;
+    }
+
+    scanBtn.disabled = true;
+    scanBtn.textContent = "Scanning…";
+
+    try {
+      const resp = await fetch("/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await resp.json();
+
+      if (data.error) {
+        inputError.textContent = data.error;
+        return;
+      }
+
+      // Populate result panel
+      resultCategory.textContent = data.category;
+      resultCategory.className = "risk-badge risk-" + data.category.toLowerCase();
+      resultScore.textContent = data.score;
+      resultUrl.textContent = data.url;
+
+      resultReasons.innerHTML = "";
+      data.reasons.forEach((r) => {
+        const li = document.createElement("li");
+        li.textContent = r;
+        resultReasons.appendChild(li);
+      });
+
+      resultPanel.classList.remove("hidden");
+      resultPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+      // Prepend to history table
+      if (emptyHistory) emptyHistory.style.display = "none";
+      if (!historyBody) {
+        // Table didn't exist on page load – reload to show it
+        return;
+      }
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="url-cell" title="${escHtml(data.url)}">${escHtml(data.url)}</td>
+        <td><span class="risk-badge risk-${data.category.toLowerCase()}">${escHtml(data.category)}</span></td>
+        <td>${data.score}</td>
+        <td class="time-cell">${escHtml(data.timestamp)}</td>
+      `;
+      historyBody.insertBefore(tr, historyBody.firstChild);
+
+    } catch (err) {
+      inputError.textContent = "Request failed. Make sure the server is running.";
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = "Scan";
+    }
+  });
+
+  clearBtn && clearBtn.addEventListener("click", async () => {
+    await fetch("/clear-history", { method: "POST" });
+    if (historyBody) historyBody.innerHTML = "";
+    if (emptyHistory) emptyHistory.style.display = "";
+  });
+
+  function escHtml(str) {
+    return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+</script>
+</body>
+</html>
